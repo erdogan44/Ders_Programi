@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ders Programı</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --border: #334155;
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --green: #22c55e;
+    --amber: #f59e0b;
+    --red: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    width: 100%;
+    max-width: 720px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+  }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .header h1 { font-size: 1.35rem; font-weight: 700; color: var(--accent); }
+  .badge {
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--accent);
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+  }
+  .status-box {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    text-align: center;
+  }
+  .stat-label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .stat-val { font-size: 1.2rem; font-weight: 700; }
+  .stat-sub { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+  select, button, .file-btn {
+    background: #0f172a;
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.92rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  select:focus, button:hover, .file-btn:hover { border-color: var(--accent); }
+  .btn-primary {
+    background: var(--accent);
+    color: #0f172a;
+    font-weight: 700;
+    border: none;
+    flex: 1;
+    min-width: 220px;
+    font-size: 1rem;
+  }
+  .btn-primary:hover { background: #7dd3fc; }
+  .btn-secondary { background: #334155; border: none; font-weight: 600; }
+  .btn-secondary:hover { background: #475569; }
+  .file-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border);
+    font-size: 0.85rem;
+    color: var(--muted);
+    align-items: center;
+  }
+  input[type="file"] { display: none; }
+  .table-wrap {
+    margin-top: 18px;
+    overflow-x: auto;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  th, td { padding: 8px 6px; border: 1px solid var(--border); text-align: center; }
+  th { background: #0f172a; color: var(--accent); font-weight: 600; }
+  td.time-col { background: rgba(15,23,42,0.5); font-weight: 600; color: var(--muted); white-space: nowrap; }
+  td.active-cell { background: rgba(34, 197, 94, 0.2); border: 1px solid var(--green); font-weight: 700; }
+  .lesson-name { font-weight: 700; color: var(--text); }
+  .teacher-name { font-size: 0.72rem; color: var(--muted); }
+  .msg { font-size: 0.82rem; color: var(--amber); margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<div class="panel">
+  <div class="header">
+    <div>
+      <h1>Ders Programı</h1>
+      <div id="clockDisplay" style="font-size:0.85rem; color:var(--muted); margin-top:2px;">--:--:--</div>
+    </div>
+    <div class="badge" id="selectedClassBadge">Sınıf Seçilmedi</div>
+  </div>
+
+  <div class="status-box">
+    <div>
+      <div class="stat-label">Şu Anki Ders</div>
+      <div class="stat-val" id="nowLesson">-</div>
+      <div class="stat-sub" id="nowTeacher"></div>
+    </div>
+    <div>
+      <div class="stat-label">Kalan Süre</div>
+      <div class="stat-val" style="color:var(--green);" id="nowRemaining">--:--</div>
+      <div class="stat-sub" id="nowPeriodInfo"></div>
+    </div>
+    <div>
+      <div class="stat-label">Sonraki Ders</div>
+      <div class="stat-val" style="color:var(--accent);" id="nextLesson">-</div>
+      <div class="stat-sub" id="nextTeacher"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <select id="classSelect" title="Sınıf Seçin">
+      <option value="">-- Sınıf Seçin --</option>
+    </select>
+    <button class="btn-primary" id="pipBtn">📌 Köşe Çubuğunu Aç (Her Zaman Üstte)</button>
+    <button class="btn-secondary" id="toggleScheduleBtn">📅 Program</button>
+  </div>
+
+  <div class="file-row">
+    <span>Veri Kaynağı:</span>
+    <button class="file-btn" id="syncDriveBtn">🔄 Drive'dan Yenile</button>
+    <label class="file-btn">📂 prg.xls<input type="file" id="xlsInput" accept=".xls,.xlsx"></label>
+    <label class="file-btn">⏰ saatler.txt<input type="file" id="txtInput" accept=".txt"></label>
+    <span id="dataStatus" style="margin-left:auto;">Otomatik yükleniyor...</span>
+  </div>
+  <div class="msg" id="infoMsg"></div>
+
+  <div class="table-wrap" id="scheduleContainer" style="display:none;">
+    <table id="scheduleTable"></table>
+  </div>
+</div>
+
+<script>
+const DRIVE_API_URL = "https://script.google.com/macros/s/AKfycbw2zs3j0qY8FHoey-ESsEmYa939OM1UIiQaHyMDHpdwfkCyA_Q-iJTIut3i1TR4O7rt/exec";
+
+const DEFAULT_HOURS_TXT = `1. Ders: 08:20 - 09:00
+2. Ders: 09:10 - 09:50
+3. Ders: 10:00 - 10:40
+4. Ders: 10:50 - 11:30
+5. Ders: 11:40 - 12:20
+6. Ders: 13:05 - 13:45
+7. Ders: 13:55 - 14:35
+8. Ders: 14:45 - 15:25`;
+
+const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"];
+
+let scheduleData = {};
+let lessonHours = [];
+let selectedClass = "";
+let pipWindow = null;
+
+function initSelectedClass() {
+  const params = new URLSearchParams(window.location.search);
+  const urlClass = params.get("sinif");
+  if (urlClass) {
+    selectedClass = urlClass.trim().toUpperCase();
+    localStorage.setItem("akilli_tahta_sinif", selectedClass);
+  } else {
+    selectedClass = localStorage.getItem("akilli_tahta_sinif") || "";
+  }
+}
+
+function formatCountdown(totalSeconds) {
+  if (totalSeconds <= 0) return "00:00";
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function parseHoursText(txt) {
+  const lines = txt.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const parsed = [];
+  const regex = /(\d+)\.\s*Ders\s*:\s*(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/i;
+  for (const line of lines) {
+    const m = line.match(regex);
+    if (m) {
+      const no = parseInt(m[1], 10);
+      const start = m[2].padStart(5, '0');
+      const end = m[3].padStart(5, '0');
+      const [sh, sm] = start.split(':').map(Number);
+      const [eh, em] = end.split(':').map(Number);
+      parsed.push({
+        no, start, end,
+        startSec: (sh * 60 + sm) * 60,
+        endSec: (eh * 60 + em) * 60
+      });
+    }
+  }
+  parsed.sort((a, b) => a.no - b.no);
+  if (parsed.length > 0) {
+    lessonHours = parsed;
+    localStorage.setItem("akilli_tahta_saatler", txt);
+  }
+}
+
+function parseWorkbook(arrayBuffer) {
+  const wb = XLSX.read(arrayBuffer, { type: "array" });
+  const result = {};
+
+  if (wb.SheetNames.includes("Sınıf Programı")) {
+    const ws = wb.Sheets["Sınıf Programı"];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+    let headerIdx = rows.findIndex(r => r.some(c => String(c).trim() === "Sınıf Adı"));
+    if (headerIdx !== -1) {
+      const headers = rows[headerIdx].map(h => String(h).trim());
+      const classCol = headers.indexOf("Sınıf Adı");
+      for (let i = headerIdx + 1; i < rows.length; i++) {
+        const row = rows[i];
+        const clsName = String(row[classCol] || "").trim().toUpperCase();
+        if (!clsName) continue;
+        result[clsName] = {};
+        for (const day of DAYS) {
+          result[clsName][day] = [];
+          for (let p = 1; p <= 8; p++) {
+            const colIdx = headers.indexOf(`${day} ${p}`);
+            result[clsName][day].push(colIdx !== -1 ? String(row[colIdx] || "").trim() : "");
+          }
+        }
+      }
+    }
+  } else {
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+    let headerIdx = rows.findIndex(r => r.some(c => String(c).trim() === "Adı Soyadı"));
+    if (headerIdx !== -1) {
+      const headers = rows[headerIdx].map(h => String(h).trim());
+      const nameCol = headers.indexOf("Adı Soyadı");
+      for (let i = headerIdx + 1; i < rows.length; i++) {
+        const row = rows[i];
+        const teacher = String(row[nameCol] || "").trim();
+        if (!teacher) continue;
+        for (const day of DAYS) {
+          for (let p = 1; p <= 8; p++) {
+            const colIdx = headers.indexOf(`${day} ${p}`);
+            const val = colIdx !== -1 ? String(row[colIdx] || "").trim() : "";
+            if (val && val.includes("-")) {
+              const [clsPart, lessonPart] = val.split("-").map(s => s.trim());
+              const clsName = clsPart.toUpperCase();
+              if (!result[clsName]) {
+                result[clsName] = {};
+                DAYS.forEach(d => result[clsName][d] = Array(8).fill(""));
+              }
+              result[clsName][day][p - 1] = `${lessonPart} - ${teacher}`;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (Object.keys(result).length > 0) {
+    scheduleData = result;
+    localStorage.setItem("akilli_tahta_program", JSON.stringify(result));
+    populateClassDropdown();
+  }
+}
+
+function base64ToArrayBuffer(base64) {
+  const binary = atob(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function populateClassDropdown() {
+  const sel = document.getElementById("classSelect");
+  const classes = Object.keys(scheduleData).sort((a, b) => a.localeCompare(b, 'tr', { numeric: true }));
+  sel.innerHTML = '<option value="">-- Sınıf Seçin --</option>';
+  for (const cls of classes) {
+    const opt = document.createElement("option");
+    opt.value = cls;
+    opt.textContent = cls;
+    if (cls === selectedClass) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  updateUI();
+}
+
+function splitCell(cellText) {
+  if (!cellText) return { lesson: "Boş", teacher: "" };
+  const parts = cellText.split(" - ");
+  return {
+    lesson: parts[0] ? parts[0].trim() : cellText,
+    teacher: parts.slice(1).join(" - ").trim()
+  };
+}
+
+function getCurrentStatus() {
+  const now = new Date();
+  const dayIdx = now.getDay();
+  const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+
+  if (!selectedClass || !scheduleData[selectedClass]) {
+    return { status: "NO_CLASS", nowLesson: "Sınıf Seçiniz", nowTeacher: "", remaining: "--:--", periodInfo: "", nextLesson: "-", nextTeacher: "", dayName: "", periodIdx: -1 };
+  }
+
+  if (dayIdx === 0 || dayIdx === 6) {
+    return { status: "WEEKEND", nowLesson: "Hafta Sonu", nowTeacher: "İyi Tatiller", remaining: "--:--", periodInfo: "", nextLesson: "Pazartesi 1. Ders", nextTeacher: splitCell(scheduleData[selectedClass]["Pazartesi"]?.[0]).lesson, dayName: "", periodIdx: -1 };
+  }
+
+  const dayName = DAYS[dayIdx - 1];
+  const dayLessons = scheduleData[selectedClass][dayName] || [];
+
+  for (let i = 0; i < lessonHours.length; i++) {
+    const h = lessonHours[i];
+    if (nowSec >= h.startSec && nowSec < h.endSec) {
+      const remSec = h.endSec - nowSec;
+      const cur = splitCell(dayLessons[i]);
+      const nxt = i + 1 < lessonHours.length ? splitCell(dayLessons[i + 1]) : { lesson: "Son Ders (Çıkış)", teacher: "" };
+      return {
+        status: "IN_LESSON",
+        nowLesson: cur.lesson,
+        nowTeacher: cur.teacher,
+        remaining: formatCountdown(remSec),
+        periodInfo: `${h.no}. Ders (${h.start}-${h.end})`,
+        nextLesson: nxt.lesson,
+        nextTeacher: nxt.teacher,
+        dayName,
+        periodIdx: i
+      };
+    }
+    if (nowSec < h.startSec) {
+      const remSec = h.startSec - nowSec;
+      const nxt = splitCell(dayLessons[i]);
+      let label = "Teneffüs";
+      if (i === 0) {
+        label = "Ders Başlamadı";
+      } else {
+        const gapMin = (h.startSec - lessonHours[i - 1].endSec) / 60;
+        if (gapMin >= 25) label = "Öğle Arası";
+      }
+      return {
+        status: "BREAK",
+        nowLesson: label,
+        nowTeacher: `${h.start}'de başlayacak`,
+        remaining: formatCountdown(remSec),
+        periodInfo: `${h.no}. Derse Kalan`,
+        nextLesson: nxt.lesson,
+        nextTeacher: nxt.teacher,
+        dayName,
+        periodIdx: i
+      };
+    }
+  }
+
+  return {
+    status: "FINISHED",
+    nowLesson: "Dersler Bitti",
+    nowTeacher: "İyi Günler",
+    remaining: "00:00",
+    periodInfo: dayName,
+    nextLesson: "-",
+    nextTeacher: "",
+    dayName,
+    periodIdx: -1
+  };
+}
+
+function renderScheduleTable(targetTable, currentDay, currentPeriodIdx) {
+  if (!selectedClass || !scheduleData[selectedClass]) {
+    targetTable.innerHTML = "<tr><td>Önce sınıf seçin</td></tr>";
+    return;
+  }
+  let html = "<thead><tr><th>Saat</th>";
+  for (const d of DAYS) html += `<th>${d.slice(0,3)}</th>`;
+  html += "</tr></thead><tbody>";
+
+  for (let p = 0; p < lessonHours.length; p++) {
+    const h = lessonHours[p];
+    html += `<tr><td class="time-col">${h.no}. Ders<br><span style="font-size:0.68rem;">${h.start}-${h.end}</span></td>`;
+    for (const d of DAYS) {
+      const cell = splitCell(scheduleData[selectedClass][d]?.[p] || "");
+      const isActive = (d === currentDay && p === currentPeriodIdx);
+      html += `<td class="${isActive ? 'active-cell' : ''}"><div class="lesson-name">${cell.lesson}</div><div class="teacher-name">${cell.teacher}</div></td>`;
+    }
+    html += "</tr>";
+  }
+  html += "</tbody>";
+  targetTable.innerHTML = html;
+}
+
+function updateUI() {
+  const now = new Date();
+  document.getElementById("clockDisplay").textContent = now.toLocaleTimeString("tr-TR");
+  document.getElementById("selectedClassBadge").textContent = selectedClass ? `${selectedClass} Sınıfı` : "Sınıf Seçilmedi";
+
+  const st = getCurrentStatus();
+  document.getElementById("nowLesson").textContent = st.nowLesson;
+  document.getElementById("nowTeacher").textContent = st.nowTeacher;
+  document.getElementById("nowRemaining").textContent = st.remaining;
+  document.getElementById("nowPeriodInfo").textContent = st.periodInfo;
+  document.getElementById("nextLesson").textContent = st.nextLesson;
+  document.getElementById("nextTeacher").textContent = st.nextTeacher;
+
+  renderScheduleTable(document.getElementById("scheduleTable"), st.dayName, st.periodIdx);
+
+  if (pipWindow && !pipWindow.closed) {
+    const doc = pipWindow.document;
+    const elClass = doc.getElementById("pipClass");
+    const elNow = doc.getElementById("pipNow");
+    const elRem = doc.getElementById("pipRem");
+    const elNext = doc.getElementById("pipNext");
+    const elTbl = doc.getElementById("pipTable");
+    if (elClass) elClass.textContent = selectedClass || "-";
+    if (elNow) elNow.textContent = st.nowLesson;
+    if (elRem) elRem.textContent = st.remaining;
+    if (elNext) elNext.textContent = st.nextLesson;
+    if (elTbl && doc.getElementById("pipDrawer").style.display !== "none") {
+      renderScheduleTable(elTbl, st.dayName, st.periodIdx);
+    }
+  }
+}
+
+async function openFloatingBar() {
+  if (!selectedClass) {
+    alert("Lütfen önce sınıfınızı seçin hocam.");
+    return;
+  }
+
+  const barHTML = `
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+      html, body {
+        background: #0f172a; color: #f8fafc;
+        overflow: hidden;
+        user-select: none;
+        width: 100%; height: 100%;
+      }
+      body::-webkit-scrollbar { display: none; }
+      .bar {
+        display: flex; align-items: center; justify-content: space-between;
+        height: 62px; padding: 0 12px; background: linear-gradient(90deg, #0f172a, #1e293b);
+        border-top: 2px solid #38bdf8; gap: 10px;
+      }
+      .pill { background: #38bdf8; color: #0f172a; font-weight: 800; padding: 4px 10px; border-radius: 6px; font-size: 0.88rem; }
+      .item { display: flex; flex-direction: column; }
+      .lbl { font-size: 0.65rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.3px; }
+      .val { font-size: 0.94rem; font-weight: 700; white-space: nowrap; }
+      .rem { color: #22c55e; font-size: 1.05rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+      .nxt { color: #7dd3fc; }
+      button {
+        background: #334155; color: #f8fafc; border: 1px solid #475569;
+        padding: 7px 11px; border-radius: 8px; font-weight: 600; font-size: 0.8rem; cursor: pointer;
+        white-space: nowrap;
+      }
+      button:hover { background: #475569; border-color: #38bdf8; }
+      #pipDrawer { display: none; padding: 8px; background: #0f172a; border-bottom: 1px solid #334155; }
+      table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
+      th, td { border: 1px solid #334155; padding: 4px 3px; text-align: center; }
+      th { background: #1e293b; color: #38bdf8; }
+      td.time-col { color: #94a3b8; font-weight: 600; }
+      td.active-cell { background: rgba(34, 197, 94, 0.25); border-color: #22c55e; }
+      .teacher-name { font-size: 0.62rem; color: #94a3b8; }
+    </style>
+    <div id="pipDrawer"><table id="pipTable"></table></div>
+    <div class="bar">
+      <span class="pill" id="pipClass">${selectedClass}</span>
+      <div class="item"><span class="lbl">Şu An</span><span class="val" id="pipNow">-</span></div>
+      <div class="item"><span class="lbl">Kalan</span><span class="val rem" id="pipRem">--:--</span></div>
+      <div class="item"><span class="lbl">Sonraki</span><span class="val nxt" id="pipNext">-</span></div>
+      <button id="pipToggleBtn">📅 Program</button>
+    </div>
+  `;
+
+  if ("documentPictureInPicture" in window) {
+    try {
+      pipWindow = await window.documentPictureInPicture.requestWindow({
+        width: 480,
+        height: 64
+      });
+      pipWindow.document.body.innerHTML = barHTML;
+      const btn = pipWindow.document.getElementById("pipToggleBtn");
+      const drawer = pipWindow.document.getElementById("pipDrawer");
+      btn.addEventListener("click", async () => {
+        const isOpen = drawer.style.display === "block";
+        if (isOpen) {
+          drawer.style.display = "none";
+          pipWindow.resizeTo(480, 64);
+        } else {
+          drawer.style.display = "block";
+          const st = getCurrentStatus();
+          renderScheduleTable(pipWindow.document.getElementById("pipTable"), st.dayName, st.periodIdx);
+          pipWindow.resizeTo(550, 475);
+        }
+      });
+      updateUI();
+      document.getElementById("infoMsg").textContent = "Köşe çubuğu açıldı! Tahtada başka pencere açsanız bile en üstte kalacaktır.";
+      return;
+    } catch (e) {
+      console.warn("PiP açılamadı, yedek pencereye geçiliyor:", e);
+    }
+  }
+
+  const left = screen.availWidth - 490;
+  const top = screen.availHeight - 95;
+  pipWindow = window.open("", "DersCubugu", `width=480,height=64,left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,scrollbars=no`);
+  if (pipWindow) {
+    pipWindow.document.body.innerHTML = barHTML;
+    const btn = pipWindow.document.getElementById("pipToggleBtn");
+    const drawer = pipWindow.document.getElementById("pipDrawer");
+    btn.addEventListener("click", () => {
+      const isOpen = drawer.style.display === "block";
+      if (isOpen) {
+        drawer.style.display = "none";
+        pipWindow.resizeTo(480, 64);
+        pipWindow.moveTo(screen.availWidth - 490, screen.availHeight - 95);
+      } else {
+        drawer.style.display = "block";
+        const st = getCurrentStatus();
+        renderScheduleTable(pipWindow.document.getElementById("pipTable"), st.dayName, st.periodIdx);
+        pipWindow.resizeTo(550, 475);
+        pipWindow.moveTo(screen.availWidth - 560, screen.availHeight - 505);
+      }
+    });
+    updateUI();
+    document.getElementById("infoMsg").textContent = "Mini pencere sağ alt köşede açıldı. Pardus'ta üst çubuğa sağ tıklayıp 'Her Zaman Üstte' seçebilirsiniz.";
+  }
+}
+
+async function autoLoadFiles() {
+  initSelectedClass();
+  const statusEl = document.getElementById("dataStatus");
+
+  try {
+    const resTxt = await fetch("saatler.txt?t=" + Date.now());
+    if (resTxt.ok) {
+      parseHoursText(await resTxt.text());
+    } else {
+      throw new Error("Yok");
+    }
+  } catch {
+    parseHoursText(localStorage.getItem("akilli_tahta_saatler") || DEFAULT_HOURS_TXT);
+  }
+
+  if (DRIVE_API_URL) {
+    statusEl.textContent = "⏳ Drive'dan çekiliyor...";
+    statusEl.style.color = "#38bdf8";
+    try {
+      const res = await fetch(DRIVE_API_URL + "?t=" + Date.now());
+      const data = await res.json();
+      if (data.saatler) parseHoursText(data.saatler);
+      if (data.prgBase64) {
+        parseWorkbook(base64ToArrayBuffer(data.prgBase64));
+        statusEl.textContent = "✅ Google Drive güncel";
+        statusEl.style.color = "#22c55e";
+        return;
+      }
+    } catch (err) {
+      console.warn("Drive çekme hatası:", err);
+    }
+  }
+
+  try {
+    const resXls = await fetch("prg.xls?t=" + Date.now());
+    if (resXls.ok) {
+      parseWorkbook(await resXls.arrayBuffer());
+      statusEl.textContent = "✅ Yerel prg.xls aktif";
+      statusEl.style.color = "#22c55e";
+      return;
+    }
+  } catch {}
+
+  const savedProg = localStorage.getItem("akilli_tahta_program");
+  if (savedProg) {
+    scheduleData = JSON.parse(savedProg);
+    populateClassDropdown();
+    statusEl.textContent = "💾 Hafızadaki program yüklendi";
+    statusEl.style.color = "#38bdf8";
+  } else {
+    statusEl.textContent = "⚠️ Drive URL girin veya prg.xls seçin";
+    statusEl.style.color = "#f59e0b";
+  }
+}
+
+document.getElementById("syncDriveBtn").addEventListener("click", autoLoadFiles);
+
+document.getElementById("classSelect").addEventListener("change", (e) => {
+  selectedClass = e.target.value;
+  localStorage.setItem("akilli_tahta_sinif", selectedClass);
+  updateUI();
+});
+
+document.getElementById("pipBtn").addEventListener("click", openFloatingBar);
+
+document.getElementById("toggleScheduleBtn").addEventListener("click", () => {
+  const cont = document.getElementById("scheduleContainer");
+  cont.style.display = cont.style.display === "none" ? "block" : "none";
+  updateUI();
+});
+
+document.getElementById("xlsInput").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    parseWorkbook(ev.target.result);
+    document.getElementById("dataStatus").textContent = "✅ " + file.name + " yüklendi";
+    document.getElementById("dataStatus").style.color = "#22c55e";
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+document.getElementById("txtInput").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    parseHoursText(ev.target.result);
+    updateUI();
+    document.getElementById("dataStatus").textContent = "✅ " + file.name + " güncellendi";
+  };
+  reader.readAsText(file, "UTF-8");
+});
+
+autoLoadFiles();
+setInterval(updateUI, 1000);
+</script>
+</body>
+</html>
