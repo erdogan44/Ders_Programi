@@ -524,6 +524,7 @@ async function openFloatingBar() {
         if (isOpen) {
           drawer.style.display = "none";
           pipWindow.resizeTo(480, 64);
+          try { pipWindow.moveTo(screen.availWidth - 500, screen.availHeight - 105); } catch {}
         } else {
           drawer.style.display = "block";
           const st = getCurrentStatus();
